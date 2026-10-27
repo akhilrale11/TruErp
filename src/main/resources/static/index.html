@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradeAI — AI-Powered Market Intelligence & Trading Terminal</title>
+    <meta name="description" content="Professional TradingView-style financial charting terminal and AI trading signal engine for Forex, Cryptocurrency, and Indian Stock Markets.">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="/css/styles.css">
+    
+    <!-- TradingView Lightweight Charts & SockJS/STOMP -->
+    <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+</head>
+<body class="terminal-body">
+
+    <!-- Top Trading Terminal Header -->
+    <header class="terminal-header">
+        <div class="header-left">
+            <div class="brand" onclick="switchMainView('terminal')" style="cursor:pointer;">
+                <div class="brand-icon"><i class="fa-solid fa-chart-candlestick"></i></div>
+                <div>
+                    <div class="brand-title">TradeAI</div>
+                    <div class="brand-subtitle">AI-Powered Market Intelligence</div>
+                </div>
+            </div>
+
+            <div class="mode-badge" id="modeBadge" style="border-color:rgba(16,185,129,0.4); color:#10b981; background:rgba(16,185,129,0.12);">
+                <i class="fa-solid fa-signal" style="color:#10b981;"></i> 🟢 LIVE MARKET DATA
+            </div>
+
+            <!-- Main Navigation View Selector -->
+            <nav class="main-nav-tabs">
+                <button class="nav-tab active" id="navTabTerminal" onclick="switchMainView('terminal')"><i class="fa-solid fa-chart-line"></i> Terminal</button>
+                <button class="nav-tab" id="navTabSignals" onclick="switchMainView('signals')"><i class="fa-solid fa-robot"></i> AI Signals</button>
+                <button class="nav-tab" id="navTabScanner" onclick="switchMainView('scanner')"><i class="fa-solid fa-binoculars"></i> Scanner</button>
+                <button class="nav-tab" id="navTabWatchlists" onclick="switchMainView('watchlists')"><i class="fa-solid fa-star"></i> Watchlist</button>
+                <button class="nav-tab" id="navTabAlerts" onclick="switchMainView('alerts')"><i class="fa-solid fa-bell"></i> Alerts</button>
+                <button class="nav-tab" id="navTabBacktest" onclick="switchMainView('backtest')"><i class="fa-solid fa-flask"></i> Backtest</button>
+                <button class="nav-tab" id="navTabPortfolio" onclick="switchMainView('portfolio')"><i class="fa-solid fa-wallet"></i> Paper Trading</button>
+                <button class="nav-tab" id="navTabJournal" onclick="switchMainView('journal')"><i class="fa-solid fa-book"></i> Journal</button>
+                <button class="nav-tab" id="navTabNews" onclick="switchMainView('news')"><i class="fa-solid fa-newspaper"></i> News & Calendar</button>
+                <button class="nav-tab" id="navTabPricing" onclick="switchMainView('pricing')"><i class="fa-solid fa-gem"></i> Pricing</button>
+                <button class="nav-tab" id="navTabSettings" onclick="switchMainView('settings')"><i class="fa-solid fa-gear"></i> Settings</button>
+            </nav>
+        </div>
+
+        <!-- Header Right Quotes & Account -->
+        <div class="header-right">
+            <button class="header-btn ai-chat-btn" onclick="toggleAIChatDrawer()">
+                <i class="fa-solid fa-comments" style="color:var(--accent-cyan);"></i> AI Assistant
+            </button>
+
+            <div class="live-quote-box">
+                <div class="quote-item sell">
+                    <span class="lbl">BID</span>
+                    <span class="val" id="hdrBid">2648.25</span>
+                </div>
+                <div class="quote-item buy">
+                    <span class="lbl">ASK</span>
+                    <span class="val" id="hdrAsk">2648.45</span>
+                </div>
+                <div class="quote-spread">
+                    SPREAD <span id="hdrSpread">0.20</span>
+                </div>
+            </div>
+
+            <div class="account-summary-pill">
+                <i class="fa-solid fa-wallet" style="color:var(--accent-cyan);"></i>
+                <div>
+                    <div style="font-size:0.65rem; color:var(--text-muted);">PAPER EQUITY</div>
+                    <div style="font-weight:700; color:#ffffff;" id="hdrEquity">$10,000.00</div>
+                </div>
+            </div>
+
+            <button class="btn btn-deposit" id="btnDepositModal">
+                <i class="fa-solid fa-plus-circle"></i> Wallet
+            </button>
+        </div>
+    </header>
+
+    <!-- Sub-Header Toolbar (For Symbol, Market Category & Timeframe Controls) -->
+    <div class="sub-header-toolbar" id="subHeaderToolbar">
+        <div style="display:flex; align-items:center; gap:0.75rem;">
+            <!-- Market Category Selector -->
+            <div class="market-category-tabs">
+                <button class="cat-btn active" onclick="filterMarketCategory('ALL')">All</button>
+                <button class="cat-btn" onclick="filterMarketCategory('FOREX')"><i class="fa-solid fa-globe"></i> Forex</button>
+                <button class="cat-btn" onclick="filterMarketCategory('CRYPTO')"><i class="fa-solid fa-coins"></i> Crypto</button>
+                <button class="cat-btn" onclick="filterMarketCategory('INDIAN_MARKET')"><i class="fa-solid fa-indian-rupee-sign"></i> Indian Market</button>
+            </div>
+
+            <!-- Instrument Selector Dropdown -->
+            <div class="symbol-select-wrapper">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <select id="symbolSelector" onchange="selectSymbol(this.value)">
+                    <optgroup label="Forex Pairs">
+                        <option value="XAUUSD" selected>XAUUSD (Gold Spot / USD)</option>
+                        <option value="XAGUSD">XAGUSD (Silver Spot / USD)</option>
+                        <option value="EURUSD">EURUSD (Euro / USD)</option>
+                        <option value="GBPUSD">GBPUSD (British Pound / USD)</option>
+                        <option value="USDJPY">USDJPY (USD / Japanese Yen)</option>
+                        <option value="USDCHF">USDCHF (USD / Swiss Franc)</option>
+                        <option value="AUDUSD">AUDUSD (Australian Dollar / USD)</option>
+                        <option value="USDCAD">USDCAD (USD / Canadian Dollar)</option>
+                        <option value="NZDUSD">NZDUSD (NZ Dollar / USD)</option>
+                    </optgroup>
+                    <optgroup label="Crypto Assets">
+                        <option value="BTCUSD">BTCUSD (Bitcoin / USD)</option>
+                        <option value="ETHUSD">ETHUSD (Ethereum / USD)</option>
+                        <option value="SOLUSD">SOLUSD (Solana / USD)</option>
+                        <option value="BNBUSD">BNBUSD (BNB / USD)</option>
+                        <option value="XRPUSD">XRPUSD (XRP / USD)</option>
+                        <option value="ADAUSD">ADAUSD (Cardano / USD)</option>
+                        <option value="DOGEUSD">DOGEUSD (Dogecoin / USD)</option>
+                    </optgroup>
+                    <optgroup label="Indian Stock Market (NSE / BSE)">
+                        <option value="NIFTY50">NIFTY 50 Index (NSE)</option>
+                        <option value="BANKNIFTY">BANK NIFTY Index (NSE)</option>
+                        <option value="FINNIFTY">FINNIFTY Financial (NSE)</option>
+                        <option value="SENSEX">SENSEX Index (BSE)</option>
+                        <option value="RELIANCE">RELIANCE (Reliance Industries)</option>
+                        <option value="TCS">TCS (Tata Consultancy)</option>
+                        <option value="HDFCBANK">HDFCBANK (HDFC Bank Ltd)</option>
+                        <option value="INFY">INFY (Infosys Ltd)</option>
+                        <option value="TATAMOTORS">TATAMOTORS (Tata Motors)</option>
+                        <option value="ICICIBANK">ICICIBANK (ICICI Bank)</option>
+                        <option value="SBIN">SBIN (State Bank of India)</option>
+                    </optgroup>
+                </select>
+            </div>
+
+            <!-- Timeframe Selector Toolbar -->
+            <div class="tf-toolbar" id="timeframeToolbar">
+                <button class="tf-btn" onclick="setTimeframe('1s')">1s</button>
+                <button class="tf-btn" onclick="setTimeframe('5s')">5s</button>
+                <button class="tf-btn" onclick="setTimeframe('15s')">15s</button>
+                <button class="tf-btn" onclick="setTimeframe('30s')">30s</button>
+                <button class="tf-btn" onclick="setTimeframe('1m')">1m</button>
+                <button class="tf-btn active" onclick="setTimeframe('5m')">5m</button>
+                <button class="tf-btn" onclick="setTimeframe('15m')">15m</button>
+                <button class="tf-btn" onclick="setTimeframe('30m')">30m</button>
+                <button class="tf-btn" onclick="setTimeframe('1hr')">1h</button>
+                <button class="tf-btn" onclick="setTimeframe('2h')">2h</button>
+                <button class="tf-btn" onclick="setTimeframe('4h')">4h</button>
+                <button class="tf-btn" onclick="setTimeframe('1d')">1d</button>
+                <button class="tf-btn" onclick="setTimeframe('1w')">1w</button>
+                <button class="tf-btn" onclick="setTimeframe('1M')">1M</button>
+            </div>
+
+            <!-- Chart Type Selector -->
+            <select id="chartTypeSelector" onchange="setChartType(this.value)" class="hdr-select">
+                <option value="candlestick" selected>Candlestick</option>
+                <option value="hollow">Hollow Candlestick</option>
+                <option value="bar">Bar Chart</option>
+                <option value="line">Line Chart</option>
+                <option value="area">Area Chart</option>
+                <option value="heikin_ashi">Heikin Ashi</option>
+            </select>
+
+            <!-- SMC & Price Action Overlay Toggle -->
+            <button class="header-btn" id="btnToggleSMC" onclick="toggleSMCOverlay()">
+                <i class="fa-solid fa-layer-group" style="color:var(--accent-cyan);"></i> SMC Layers: ON
+            </button>
+
+            <!-- Multi-Chart Layout Switcher -->
+            <div class="layout-toggle-group">
+                <button class="layout-btn active" title="Single Chart" onclick="setLayoutMode(1)"><i class="fa-solid fa-square"></i></button>
+                <button class="layout-btn" title="2 Charts Side-by-Side" onclick="setLayoutMode(2)"><i class="fa-solid fa-table-columns"></i></button>
+                <button class="layout-btn" title="4 Charts Grid" onclick="setLayoutMode(4)"><i class="fa-solid fa-table-cells"></i></button>
+            </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+            <!-- Indicator Menu Button -->
+            <button class="header-btn" onclick="toggleIndicatorPanel()">
+                <i class="fa-solid fa-chart-line"></i> Indicators
+            </button>
+            
+            <button class="header-btn" style="background: rgba(0,242,254,0.12); color:var(--accent-cyan); border-color:rgba(0,242,254,0.3);" onclick="openAIScannerModal()">
+                <i class="fa-solid fa-robot"></i> Quick Scan
+            </button>
+
+            <!-- Fullscreen Toggle Button -->
+            <button class="header-btn" onclick="toggleFullScreen()">
+                <i class="fa-solid fa-expand"></i> Fullscreen
+            </button>
+        </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- VIEW 1: MAIN TRADING TERMINAL -->
+    <!-- ============================================================== -->
+    <div class="main-view-container active" id="viewTerminal">
+        <div class="terminal-workspace">
+            
+            <!-- Left TradingView Drawing Toolbar -->
+            <aside class="drawing-sidebar">
+                <button class="tool-btn active" title="Cursor / Select" onclick="setDrawingTool('cursor')"><i class="fa-solid fa-arrow-pointer"></i></button>
+                <button class="tool-btn" title="Crosshair" onclick="setDrawingTool('crosshair')"><i class="fa-solid fa-crosshairs"></i></button>
+                <button class="tool-btn" title="Trend Line" onclick="setDrawingTool('trendline')"><i class="fa-solid fa-arrow-trend-up"></i></button>
+                <button class="tool-btn" title="Horizontal Support/Resistance Line" onclick="setDrawingTool('horizontal')"><i class="fa-solid fa-arrows-left-right"></i></button>
+                <button class="tool-btn" title="Vertical Line" onclick="setDrawingTool('vertical')"><i class="fa-solid fa-arrows-up-down"></i></button>
+                <button class="tool-btn" title="Ray Line" onclick="setDrawingTool('ray')"><i class="fa-solid fa-location-arrow"></i></button>
+                <button class="tool-btn" title="Order Block Rectangle Zone" onclick="setDrawingTool('rectangle')"><i class="fa-solid fa-vector-square"></i></button>
+                <button class="tool-btn" title="Fibonacci Retracement" onclick="setDrawingTool('fibonacci')"><i class="fa-solid fa-chart-gantt"></i></button>
+                <button class="tool-btn" title="Fibonacci Extension" onclick="setDrawingTool('fib_ext')"><i class="fa-solid fa-chart-line"></i></button>
+                <button class="tool-btn" title="Parallel Channel" onclick="setDrawingTool('channel')"><i class="fa-solid fa-bars-staggered"></i></button>
+                <button class="tool-btn" title="Pitchfork" onclick="setDrawingTool('pitchfork')"><i class="fa-solid fa-code-fork"></i></button>
+                <button class="tool-btn" title="Brush / Annotation" onclick="setDrawingTool('brush')"><i class="fa-solid fa-paintbrush"></i></button>
+                <button class="tool-btn" title="Text Note" onclick="setDrawingTool('text')"><i class="fa-solid fa-font"></i></button>
+                <button class="tool-btn" title="Price Measurement Ruler" onclick="setDrawingTool('ruler')"><i class="fa-solid fa-ruler-combined"></i></button>
+                <button class="tool-btn" title="Long Position Risk Tool" onclick="setDrawingTool('long_pos')"><i class="fa-solid fa-chart-area" style="color:#10b981;"></i></button>
+                <button class="tool-btn" title="Short Position Risk Tool" onclick="setDrawingTool('short_pos')"><i class="fa-solid fa-chart-area" style="color:#ef4444;"></i></button>
+                <button class="tool-btn" title="Clear All Drawings" onclick="clearDrawings()"><i class="fa-solid fa-trash-can" style="color:#ef4444;"></i></button>
+            </aside>
+
+            <!-- Center Chart Workspace -->
+            <main class="chart-main-area">
+                
+                <!-- On-Chart Quick Trading Overlay (TradingView Buy/Sell Pill) -->
+                <div id="tvQuickTradingPill" class="tv-quick-trading-pill">
+                    <button class="tv-btn-sell" onclick="handleOrder('SELL')">
+                        <span class="lbl">SELL</span>
+                        <span class="price" id="tvPillSell">2648.25</span>
+                    </button>
+                    <div class="tv-spread-pill" id="tvPillSpread">0.20</div>
+                    <button class="tv-btn-buy" onclick="handleOrder('BUY')">
+                        <span class="price" id="tvPillBuy">2648.45</span>
+                        <span class="lbl">BUY</span>
+                    </button>
+                </div>
+
+                <!-- On-Chart Signal & Strategy Banner -->
+                <div id="chartEntryBanner" class="chart-overlay-banner" style="display:none;"></div>
+
+                <!-- Chart Header & Indicator Legend Bar (TradingView Style) -->
+                <div class="chart-info-header" id="chartInfoHeader">
+                    <div class="tv-title-group">
+                        <span class="symbol-title-full" id="tvSymbolFullTitle">Gold Spot / U.S. Dollar · <span id="chartHeaderTF">5m</span> · TradeAI Terminal</span>
+                        <span class="ohlc-box">
+                            O <strong id="chartO">0.00</strong>
+                            H <strong id="chartH">0.00</strong>
+                            L <strong id="chartL">0.00</strong>
+                            C <strong id="chartC">0.00</strong>
+                            <span id="chartChangePct" class="pct-up">+0.00 (+0.00%)</span>
+                        </span>
+                    </div>
+                    <div class="tv-indicator-legend">
+                        <span style="color:#089981;"><i class="fa-solid fa-chart-simple"></i> Vol <strong id="legendVol">1.18K</strong></span>
+                        <span style="color:#2962ff;"><i class="fa-solid fa-wave-square"></i> SMA 9 <strong id="legendSMA">2,646.20</strong></span>
+                        <span style="color:#00f2fe;" id="smcLegendTag"><i class="fa-solid fa-microchip"></i> SMC: BOS + Order Block</span>
+                    </div>
+                </div>
+
+                <!-- TradingView Chart Viewport Container -->
+                <div id="tvChartContainer" class="tv-chart-viewport"></div>
+
+                <!-- Bottom TradingView Date Range Bar -->
+                <div class="tv-bottom-range-bar">
+                    <div class="range-btns">
+                        <button class="range-btn" onclick="setTimeRange('1D')">1D</button>
+                        <button class="range-btn active" onclick="setTimeRange('5D')">5D</button>
+                        <button class="range-btn" onclick="setTimeRange('1M')">1M</button>
+                        <button class="range-btn" onclick="setTimeRange('3M')">3M</button>
+                        <button class="range-btn" onclick="setTimeRange('6M')">6M</button>
+                        <button class="range-btn" onclick="setTimeRange('YTD')">YTD</button>
+                        <button class="range-btn" onclick="setTimeRange('1Y')">1Y</button>
+                        <button class="range-btn" onclick="setTimeRange('5Y')">5Y</button>
+                        <button class="range-btn" onclick="setTimeRange('ALL')">ALL</button>
+                    </div>
+                    <div class="time-clock" id="tvBottomClock">16:55:00 (UTC+5:30)</div>
+                </div>
+
+                <!-- Technical Indicators Floating Modal -->
+                <div id="indicatorPanel" class="indicator-floating-panel" style="display:none;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                        <strong>Technical Indicators & SMC Overlays</strong>
+                        <span onclick="toggleIndicatorPanel()" style="cursor:pointer;">&times;</span>
+                    </div>
+                    <div class="indicator-grid">
+                        <label><input type="checkbox" id="indSMA9" checked onchange="toggleIndicator('SMA9')"> SMA 9 Line</label>
+                        <label><input type="checkbox" id="indEMA20" checked onchange="toggleIndicator('EMA20')"> EMA 20 Line</label>
+                        <label><input type="checkbox" id="indEMA50" checked onchange="toggleIndicator('EMA50')"> EMA 50 Line</label>
+                        <label><input type="checkbox" id="indEMA200" onchange="toggleIndicator('EMA200')"> EMA 200 Trend Filter</label>
+                        <label><input type="checkbox" id="indRSI" checked onchange="toggleIndicator('RSI')"> RSI 14 Momentum</label>
+                        <label><input type="checkbox" id="indMACD" checked onchange="toggleIndicator('MACD')"> MACD 12/26/9</label>
+                        <label><input type="checkbox" id="indVWAP" onchange="toggleIndicator('VWAP')"> VWAP Session Line</label>
+                        <label><input type="checkbox" id="indBB" onchange="toggleIndicator('BB')"> Bollinger Bands (20,2)</label>
+                        <label><input type="checkbox" id="indSupertrend" onchange="toggleIndicator('Supertrend')"> Supertrend (10, 3)</label>
+                        <label><input type="checkbox" id="indATR" onchange="toggleIndicator('ATR')"> ATR Volatility (14)</label>
+                    </div>
+                </div>
+
+                <!-- Bottom Terminal Panel: Positions, Orders, Signals Stream, Level 2 Depth -->
+                <div class="bottom-terminal-panel">
+                    <div class="bottom-tabs-bar">
+                        <button class="tab-link active" onclick="switchBottomTab('positions')">Open Positions (<span id="cntPositions">0</span>)</button>
+                        <button class="tab-link" onclick="switchBottomTab('signals')">AI Signals Stream</button>
+                        <button class="tab-link" onclick="switchBottomTab('orders')">Trade History</button>
+                        <button class="tab-link" onclick="switchBottomTab('risk_calc')">Position Size Risk Calculator</button>
+                        <button class="tab-link" onclick="switchBottomTab('wallet')">Wallet Transactions</button>
+                    </div>
+
+                    <div class="bottom-tab-content" id="tabPositionsContent">
+                        <div class="table-responsive">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Symbol</th>
+                                        <th>Side</th>
+                                        <th>Lots / Quantity</th>
+                                        <th>Entry Price</th>
+                                        <th>Current Price</th>
+                                        <th>Unrealized P&L ($)</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="positionsTableBody">
+                                    <tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No open paper trading positions</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="bottom-tab-content" id="tabSignalsContent" style="display:none;">
+                        <div class="signal-list" id="signalList"></div>
+                    </div>
+
+                    <div class="bottom-tab-content" id="tabOrdersContent" style="display:none;">
+                        <div class="table-responsive">
+                            <table>
+                                <thead>
+                                    <tr><th>Order ID</th><th>Symbol</th><th>Side</th><th>Lots</th><th>Price</th><th>Executed At</th></tr>
+                                </thead>
+                                <tbody id="ordersTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Risk & Position Size Calculator Tab -->
+                    <div class="bottom-tab-content" id="tabRiskCalcContent" style="display:none;">
+                        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:1rem; padding:0.5rem;">
+                            <div>
+                                <label style="font-size:0.75rem; color:var(--text-muted);">Account Capital ($):</label>
+                                <input type="number" id="calcCapital" value="10000" style="width:100%; padding:6px; background:#1e222d; border:1px solid #2a2e39; color:#fff; border-radius:4px;" oninput="recalculateRisk()">
+                            </div>
+                            <div>
+                                <label style="font-size:0.75rem; color:var(--text-muted);">Risk Per Trade (%):</label>
+                                <input type="number" id="calcRiskPct" value="1.0" step="0.1" style="width:100%; padding:6px; background:#1e222d; border:1px solid #2a2e39; color:#fff; border-radius:4px;" oninput="recalculateRisk()">
+                            </div>
+                            <div>
+                                <label style="font-size:0.75rem; color:var(--text-muted);">Calculated Position Size:</label>
+                                <div style="font-weight:700; color:var(--accent-cyan); font-size:1.1rem;" id="calcResultLot">0.25 Lots / Shares</div>
+                                <div style="font-size:0.7rem; color:var(--text-muted);" id="calcRiskDollar">Risk Amount: $100.00</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bottom-tab-content" id="tabWalletContent" style="display:none;">
+                        <div class="table-responsive">
+                            <table>
+                                <thead>
+                                    <tr><th>Tx ID</th><th>Type</th><th>Method</th><th>Amount ($)</th><th>Status</th><th>Time</th></tr>
+                                </thead>
+                                <tbody id="walletTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Right Terminal Sidebar: AI Signal Card + Watchlist + One-Click Trading -->
+            <aside class="right-terminal-sidebar">
+                
+                <!-- Dedicated AI Trading Signal Widget Panel -->
+                <div class="ai-signal-widget-section">
+                    <div class="sidebar-header">
+                        <span><i class="fa-solid fa-robot" style="color:var(--accent-cyan);"></i> AI SIGNAL ENGINE</span>
+                        <span id="aiSignalStateBadge" class="signal-badge badge-BUY">STRONG BUY</span>
+                    </div>
+
+                    <div class="ai-widget-body" id="aiSignalWidgetBody">
+                        <div class="ai-widget-row">
+                            <div>
+                                <span style="font-size:0.7rem; color:var(--text-muted);">SYMBOL:</span>
+                                <strong id="aiWidgetSymbol">XAUUSD</strong>
+                            </div>
+                            <div>
+                                <span style="font-size:0.7rem; color:var(--text-muted);">CONDITION:</span>
+                                <span class="market-cond-tag" id="aiWidgetCondition">BULLISH BOS</span>
+                            </div>
+                        </div>
+
+                        <div class="ai-widget-grid">
+                            <div class="ai-metric-box">
+                                <div class="lbl">ENTRY ZONE</div>
+                                <div class="val" id="aiWidgetEntry">$2,648.45</div>
+                            </div>
+                            <div class="ai-metric-box">
+                                <div class="lbl">STOP LOSS (SL)</div>
+                                <div class="val val-sl" id="aiWidgetSL">$2,642.00</div>
+                            </div>
+                            <div class="ai-metric-box">
+                                <div class="lbl">TAKE PROFIT (TP1)</div>
+                                <div class="val val-tp" id="aiWidgetTP1">$2,662.00</div>
+                            </div>
+                            <div class="ai-metric-box">
+                                <div class="lbl">TAKE PROFIT (TP2)</div>
+                                <div class="val val-tp" id="aiWidgetTP2">$2,675.00</div>
+                            </div>
+                        </div>
+
+                        <div style="margin-top:0.5rem; display:flex; justify-content:space-between; align-items:center; font-size:0.75rem;">
+                            <span>Risk/Reward: <strong id="aiWidgetRR" style="color:#00f2fe;">1 : 2.5</strong></span>
+                            <span>Multi-TF: <strong style="color:#10b981;">BULLISH (1H/15M)</strong></span>
+                        </div>
+
+                        <div class="confidence-bar-container" style="margin-top:0.4rem;">
+                            <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-muted); margin-bottom:2px;">
+                                <span>AI Confluence Score</span>
+                                <strong id="aiWidgetScore" style="color:#10b981;">82 / 100</strong>
+                            </div>
+                            <div class="confidence-bar"><div class="confidence-fill" id="aiWidgetScoreBar" style="width: 82%;"></div></div>
+                        </div>
+
+                        <div class="ai-reasons-accordion" style="margin-top:0.5rem;">
+                            <div class="reasons-title" id="aiReasonsHeader">WHY BUY?</div>
+                            <ul id="aiReasonsList" class="reasons-ul">
+                                <li>✓ Higher Timeframe 1H Bullish trend alignment</li>
+                                <li>✓ 5M Bullish Break of Structure (BOS)</li>
+                                <li>✓ Retested Demand Order Block Zone</li>
+                                <li>✓ RSI (61) & MACD momentum confirmation</li>
+                            </ul>
+                        </div>
+
+                        <div style="margin-top:0.4rem; font-size:0.68rem; color:#f59e0b;" id="aiInvalidationWarning">
+                            ⚠️ Invalidation: 15M close below $2,642.00.
+                        </div>
+
+                        <div class="ai-action-btn-group" style="margin-top:0.6rem; display:flex; gap:0.4rem;">
+                            <button class="btn btn-ai" style="flex:1; padding:6px; font-size:0.75rem;" onclick="triggerAIAnalysis()">
+                                <i class="fa-solid fa-rotate"></i> Re-Analyze
+                            </button>
+                            <button class="btn btn-buy" style="flex:1; padding:6px; font-size:0.75rem;" onclick="executeAISignalOrder('BUY')">
+                                Execute BUY
+                            </button>
+                            <button class="btn btn-sell" style="flex:1; padding:6px; font-size:0.75rem;" onclick="executeAISignalOrder('SELL')">
+                                Execute SELL
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- One-Click Order Execution Panel -->
+                <div class="trading-panel-section">
+                    <div class="sidebar-header">
+                        <span>ONE-CLICK ORDER EXECUTION</span>
+                        <span id="panelSymbolName" style="color:var(--accent-cyan);">XAUUSD</span>
+                    </div>
+
+                    <div class="order-execution-box">
+                        <div class="lot-input-group">
+                            <label>Lot Size / Shares:</label>
+                            <input type="number" id="tradeLotSize" value="0.10" step="0.01" min="0.01">
+                        </div>
+
+                        <div class="quick-order-buttons">
+                            <button class="btn btn-sell-big" onclick="handleOrder('SELL')">
+                                <div style="font-size:0.75rem;">SELL</div>
+                                <div style="font-size:1.1rem; font-weight:800;" id="panelBidBtn">2648.25</div>
+                            </button>
+                            <button class="btn btn-buy-big" onclick="handleOrder('BUY')">
+                                <div style="font-size:0.75rem;">BUY</div>
+                                <div style="font-size:1.1rem; font-weight:800;" id="panelAskBtn">2648.45</div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Watchlist Section -->
+                <div class="watchlist-section">
+                    <div class="sidebar-header">
+                        <span>WATCHLIST</span>
+                        <div style="display:flex; gap:0.5rem; align-items:center;">
+                            <i class="fa-solid fa-rotate" onclick="loadWatchlist()" style="cursor:pointer;" title="Refresh"></i>
+                        </div>
+                    </div>
+                    <div class="wl-table-header">
+                        <span>Symbol</span>
+                        <span style="text-align:right;">Last</span>
+                        <span style="text-align:right;">Chg%</span>
+                    </div>
+                    <div class="watchlist-items" id="watchlistContainer">
+                        <!-- Dynamic Watchlist Rows -->
+                    </div>
+                </div>
+
+            </aside>
+
+        </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- VIEW 2: AI SIGNALS HUB VIEW -->
+    <!-- ============================================================== -->
+    <div class="main-view-container" id="viewSignals" style="display:none; padding:1.5rem; overflow-y:auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+            <div>
+                <h2 style="font-family:'Outfit'; font-size:1.8rem; color:#fff;">AI Signal Intelligence Engine</h2>
+                <div style="color:var(--text-secondary); font-size:0.9rem;">Multi-factor confluence evaluation across Forex, Crypto, and Indian Stock Markets.</div>
+            </div>
+            <button class="btn btn-ai" onclick="loadSignals()"><i class="fa-solid fa-rotate"></i> Refresh Signals</button>
+        </div>
+
+        <!-- Multi-Timeframe Trend Matrix -->
+        <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:12px; padding:1.25rem; margin-bottom:1.5rem;">
+            <h4 style="font-family:'Outfit'; color:var(--accent-cyan); margin-bottom:1rem;"><i class="fa-solid fa-matrix"></i> Multi-Timeframe Trend Confluence Matrix</h4>
+            <div style="display:grid; grid-template-columns: repeat(7, 1fr); gap:0.5rem; text-align:center;" id="mtfMatrixContainer">
+                <div style="background:#131722; padding:0.75rem; border-radius:8px;">
+                    <div style="font-size:0.75rem; color:var(--text-muted);">Monthly (1M)</div>
+                    <div style="font-weight:700; color:#10b981; margin-top:4px;">BULLISH</div>
+                </div>
+                <div style="background:#131722; padding:0.75rem; border-radius:8px;">
+                    <div style="font-size:0.75rem; color:var(--text-muted);">Weekly (1W)</div>
+                    <div style="font-weight:700; color:#10b981; margin-top:4px;">BULLISH</div>
+                </div>
+                <div style="background:#131722; padding:0.75rem; border-radius:8px;">
+                    <div style="font-size:0.75rem; color:var(--text-muted);">Daily (1D)</div>
+                    <div style="font-weight:700; color:#10b981; margin-top:4px;">BULLISH</div>
+                </div>
+                <div style="background:#131722; padding:0.75rem; border-radius:8px;">
+                    <div style="font-size:0.75rem; color:var(--text-muted);">4-Hour (4H)</div>
+                    <div style="font-weight:700; color:#10b981; margin-top:4px;">BULLISH</div>
+                </div>
+                <div style="background:#131722; padding:0.75rem; border-radius:8px;">
+                    <div style="font-size:0.75rem; color:var(--text-muted);">1-Hour (1H)</div>
+                    <div style="font-weight:700; color:#10b981; margin-top:4px;">BULLISH</div>
+                </div>
+                <div style="background:#131722; padding:0.75rem; border-radius:8px;">
+                    <div style="font-size:0.75rem; color:var(--text-muted);">15-Min (15M)</div>
+                    <div style="font-weight:700; color:#f59e0b; margin-top:4px;">NEUTRAL</div>
+                </div>
+                <div style="background:#131722; padding:0.75rem; border-radius:8px;">
+                    <div style="font-size:0.75rem; color:var(--text-muted);">5-Min (5M)</div>
+                    <div style="font-weight:700; color:#10b981; margin-top:4px;">BULLISH</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="signal-cards-grid" id="fullSignalCardsGrid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap:1.25rem;">
+            <!-- Dynamic AI Signal Cards -->
+        </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- VIEW 3: MARKET SCANNER VIEW -->
+    <!-- ============================================================== -->
+    <div class="main-view-container" id="viewScanner" style="display:none; padding:1.5rem; overflow-y:auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+            <div>
+                <h2 style="font-family:'Outfit'; font-size:1.8rem; color:#fff;"><i class="fa-solid fa-binoculars" style="color:var(--accent-cyan);"></i> Multi-Market AI Scanner</h2>
+                <div style="color:var(--text-secondary); font-size:0.9rem;">Real-time setup scanner across Forex, Crypto & Indian Stock Markets.</div>
+            </div>
+        </div>
+
+        <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:12px; padding:1.25rem;">
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Market</th>
+                            <th>Timeframe</th>
+                            <th>AI Signal</th>
+                            <th>Confidence</th>
+                            <th>Risk/Reward</th>
+                            <th>Entry Zone</th>
+                            <th>Stop Loss</th>
+                            <th>Take Profit</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="viewScannerTableBody">
+                        <!-- Dynamic Scanner Rows -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- VIEW 4: WATCHLIST MANAGER VIEW -->
+    <!-- ============================================================== -->
+    <div class="main-view-container" id="viewWatchlists" style="display:none; padding:1.5rem; overflow-y:auto;">
+        <h2 style="font-family:'Outfit'; font-size:1.8rem; color:#fff; margin-bottom:1rem;"><i class="fa-solid fa-star" style="color:#f59e0b;"></i> Watchlist Manager</h2>
+        <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:12px; padding:1.25rem;">
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Name / Asset Class</th>
+                            <th>Bid / Ask</th>
+                            <th>Last Price</th>
+                            <th>24h Change (%)</th>
+                            <th>AI Signal</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fullWatchlistTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- VIEW 5: ALERTS MANAGER VIEW -->
+    <!-- ============================================================== -->
+    <div class="main-view-container" id="viewAlerts" style="display:none; padding:1.5rem; overflow-y:auto;">
+        <h2 style="font-family:'Outfit'; font-size:1.8rem; color:#fff; margin-bottom:1rem;"><i class="fa-solid fa-bell" style="color:var(--accent-cyan);"></i> Price & Technical Alert Manager</h2>
+        
+        <div style="display:grid; grid-template-columns: 350px 1fr; gap:1.5rem;">
+            <!-- Create Alert Form -->
+            <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:12px; padding:1.25rem;">
+                <h4 style="font-family:'Outfit'; color:#fff; margin-bottom:1rem;">Create New Alert</h4>
+                <form onsubmit="submitNewAlert(event)" style="display:flex; flex-direction:column; gap:1rem;">
+                    <div>
+                        <label style="font-size:0.8rem; color:var(--text-muted);">Symbol:</label>
+                        <select id="altSymbol" style="width:100%; padding:8px; background:#131722; border:1px solid #2a2e39; color:#fff; border-radius:6px;">
+                            <option value="XAUUSD">XAUUSD (Gold Spot)</option>
+                            <option value="BTCUSD">BTCUSD (Bitcoin)</option>
+                            <option value="ETHUSD">ETHUSD (Ethereum)</option>
+                            <option value="EURUSD">EURUSD (Euro Spot)</option>
+                            <option value="NIFTY50">NIFTY 50 Index</option>
+                            <option value="BANKNIFTY">BANK NIFTY</option>
+                            <option value="RELIANCE">RELIANCE</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label style="font-size:0.8rem; color:var(--text-muted);">Alert Condition:</label>
+                        <select id="altType" style="width:100%; padding:8px; background:#131722; border:1px solid #2a2e39; color:#fff; border-radius:6px;">
+                            <option value="PRICE_ABOVE">Price Crosses Above (> Target)</option>
+                            <option value="PRICE_BELOW">Price Crosses Below (< Target)</option>
+                            <option value="RSI_OVERBOUGHT">RSI Overbought (> 70)</option>
+                            <option value="AI_SCORE_HIGH">AI Confluence Score (> 80)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label style="font-size:0.8rem; color:var(--text-muted);">Target Price / Value:</label>
+                        <input type="number" id="altValue" placeholder="e.g. 2700.00" step="any" required style="width:100%; padding:8px; background:#131722; border:1px solid #2a2e39; color:#fff; border-radius:6px;">
+                    </div>
+
+                    <div>
+                        <label style="font-size:0.8rem; color:var(--text-muted);">Note / Description:</label>
+                        <input type="text" id="altNote" placeholder="e.g. Resistance breakout alert" style="width:100%; padding:8px; background:#131722; border:1px solid #2a2e39; color:#fff; border-radius:6px;">
+                    </div>
+
+                    <button type="submit" class="btn btn-ai" style="padding:10px;">Create Alert</button>
+                </form>
+            </div>
+
+            <!-- Active Alerts Table -->
+            <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:12px; padding:1.25rem;">
+                <h4 style="font-family:'Outfit'; color:#fff; margin-bottom:1rem;">Active Market Alerts</h4>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Symbol</th>
+                                <th>Condition</th>
+                                <th>Target Value</th>
+                                <th>Note</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="alertsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- VIEW 6: STRATEGY & BACKTESTING VIEW -->
+    <!-- ============================================================== -->
+    <div class="main-view-container" id="viewBacktest" style="display:none; padding:1.5rem; overflow-y:auto;">
+        <h2 style="font-family:'Outfit'; font-size:1.8rem; color:#fff; margin-bottom:1rem;"><i class="fa-solid fa-flask" style="color:var(--accent-purple);"></i> Strategy Backtesting Engine</h2>
+        
+        <div style="display:grid; grid-template-columns: 320px 1fr; gap:1.5rem;">
+            <!-- Backtest Setup Panel -->
+            <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:12px; padding:1.25rem;">
+                <h4 style="font-family:'Outfit'; color:#fff; margin-bottom:1rem;">Backtest Parameters</h4>
+                <form onsubmit="runStrategyBacktest(event)" style="display:flex; flex-direction:column; gap:1rem;">
+                    <div>
+                        <label style="font-size:0.8rem; color:var(--text-muted);">Symbol:</label>
+                        <select id="btSymbol" style="width:100%; padding:8px; background:#131722; border:1px solid #2a2e39; color:#fff; border-radius:6px;">
+                            <option value="XAUUSD">XAUUSD (Gold Spot)</option>
+                            <option value="BTCUSD">BTCUSD (Bitcoin)</option>
+                            <option value="EURUSD">EURUSD (Euro Spot)</option>
+                            <option value="NIFTY50">NIFTY 50 Index</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label style="font-size:0.8rem; color:var(--text-muted);">Timeframe:</label>
+                        <select id="btTimeframe" style="width:100%; padding:8px; background:#131722; border:1px solid #2a2e39; color:#fff; border-radius:6px;">
+                            <option value="5m">5-Minute (5M)</option>
+                            <option value="15m" selected>15-Minute (15M)</option>
+                            <option value="1h">1-Hour (1H)</option>
+                            <option value="4h">4-Hour (4H)</option>
+                            <option value="1d">1-Daily (1D)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label style="font-size:0.8rem; color:var(--text-muted);">Strategy:</label>
+                        <select id="btStrategy" style="width:100%; padding:8px; background:#131722; border:1px solid #2a2e39; color:#fff; border-radius:6px;">
+                            <option value="SMC_ORDER_BLOCK">SMC Order Block + FVG Confluence</option>
+                            <option value="EMA_CROSSOVER">EMA 20/50 Trend Crossover</option>
+                            <option value="RSI_DIVERGENCE">RSI Momentum Divergence</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label style="font-size:0.8rem; color:var(--text-muted);">Initial Capital ($):</label>
+                        <input type="number" id="btCapital" value="10000" style="width:100%; padding:8px; background:#131722; border:1px solid #2a2e39; color:#fff; border-radius:6px;">
+                    </div>
+
+                    <div>
+                        <label style="font-size:0.8rem; color:var(--text-muted);">Risk Per Trade (%):</label>
+                        <input type="number" id="btRiskPct" value="1.0" step="0.1" style="width:100%; padding:8px; background:#131722; border:1px solid #2a2e39; color:#fff; border-radius:6px;">
+                    </div>
+
+                    <button type="submit" class="btn btn-ai" style="padding:10px;"><i class="fa-solid fa-play"></i> Run Historical Backtest</button>
+                </form>
+            </div>
+
+            <!-- Backtest Results Overview -->
+            <div style="display:flex; flex-direction:column; gap:1.5rem;">
+                <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:1rem;" id="btMetricsGrid">
+                    <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:10px; padding:1rem; text-align:center;">
+                        <div style="font-size:0.75rem; color:var(--text-muted);">NET PROFIT</div>
+                        <div style="font-size:1.4rem; font-weight:800; color:#10b981;" id="btNetProfit">+$3,420.00</div>
+                    </div>
+                    <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:10px; padding:1rem; text-align:center;">
+                        <div style="font-size:0.75rem; color:var(--text-muted);">WIN RATE</div>
+                        <div style="font-size:1.4rem; font-weight:800; color:var(--accent-cyan);" id="btWinRate">67.5%</div>
+                    </div>
+                    <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:10px; padding:1rem; text-align:center;">
+                        <div style="font-size:0.75rem; color:var(--text-muted);">PROFIT FACTOR</div>
+                        <div style="font-size:1.4rem; font-weight:800; color:#f59e0b;" id="btProfitFactor">2.35</div>
+                    </div>
+                    <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:10px; padding:1rem; text-align:center;">
+                        <div style="font-size:0.75rem; color:var(--text-muted);">MAX DRAWDOWN</div>
+                        <div style="font-size:1.4rem; font-weight:800; color:#ef4444;" id="btMaxDD">4.2%</div>
+                    </div>
+                </div>
+
+                <!-- Backtesting Equity Curve Canvas -->
+                <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:12px; padding:1.25rem; height:320px; display:flex; flex-direction:column;">
+                    <div style="font-family:'Outfit'; color:#fff; font-size:1rem; margin-bottom:0.75rem;">Account Equity Growth Curve</div>
+                    <canvas id="equityCanvas" style="width:100%; flex:1; background:#131722; border-radius:8px;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- VIEW 7: PORTFOLIO & PAPER TRADING VIEW -->
+    <!-- ============================================================== -->
+    <div class="main-view-container" id="viewPortfolio" style="display:none; padding:1.5rem; overflow-y:auto;">
+        <h2 style="font-family:'Outfit'; font-size:1.8rem; color:#fff; margin-bottom:1rem;"><i class="fa-solid fa-wallet" style="color:var(--accent-cyan);"></i> Paper Trading & Portfolio</h2>
+        
+        <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:1rem; margin-bottom:1.5rem;">
+            <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:10px; padding:1rem;">
+                <div style="font-size:0.75rem; color:var(--text-muted);">ACCOUNT BALANCE</div>
+                <div style="font-size:1.5rem; font-weight:800; color:#fff;" id="portBalance">$10,000.00</div>
+            </div>
+            <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:10px; padding:1rem;">
+                <div style="font-size:0.75rem; color:var(--text-muted);">NET EQUITY</div>
+                <div style="font-size:1.5rem; font-weight:800; color:var(--accent-cyan);" id="portEquity">$10,340.00</div>
+            </div>
+            <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:10px; padding:1rem;">
+                <div style="font-size:0.75rem; color:var(--text-muted);">UNREALIZED P&L</div>
+                <div style="font-size:1.5rem; font-weight:800; color:#10b981;" id="portUnrealized">+$340.00</div>
+            </div>
+            <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:10px; padding:1rem;">
+                <div style="font-size:0.75rem; color:var(--text-muted);">MAX DAILY LOSS STATUS</div>
+                <div style="font-size:1.1rem; font-weight:700; color:#10b981; margin-top:4px;">🟢 SAFE (< 2.0%)</div>
+            </div>
+        </div>
+
+        <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:12px; padding:1.25rem;">
+            <h4 style="font-family:'Outfit'; color:#fff; margin-bottom:1rem;">Open Paper Trading Positions</h4>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Side</th>
+                            <th>Lots / Qty</th>
+                            <th>Entry Price</th>
+                            <th>Current Price</th>
+                            <th>P&L ($)</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="portPositionsTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- VIEW 8: TRADE JOURNAL VIEW -->
+    <!-- ============================================================== -->
+    <div class="main-view-container" id="viewJournal" style="display:none; padding:1.5rem; overflow-y:auto;">
+        <h2 style="font-family:'Outfit'; font-size:1.8rem; color:#fff; margin-bottom:1rem;"><i class="fa-solid fa-book" style="color:var(--accent-cyan);"></i> Personal Trade Journal</h2>
+        
+        <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:12px; padding:1.25rem; margin-bottom:1.5rem;">
+            <h4 style="font-family:'Outfit'; color:#fff; margin-bottom:1rem;">Log New Trade</h4>
+            <form onsubmit="submitJournalEntry(event)" style="display:grid; grid-template-columns: repeat(4, 1fr); gap:1rem;">
+                <input type="text" id="jrnSymbol" placeholder="Symbol (e.g. XAUUSD)" required style="padding:8px; background:#131722; border:1px solid #2a2e39; color:#fff; border-radius:6px;">
+                <select id="jrnDirection" style="padding:8px; background:#131722; border:1px solid #2a2e39; color:#fff; border-radius:6px;">
+                    <option value="BUY">BUY</option>
+                    <option value="SELL">SELL</option>
+                </select>
+                <input type="number" id="jrnEntry" placeholder="Entry Price" step="any" required style="padding:8px; background:#131722; border:1px solid #2a2e39; color:#fff; border-radius:6px;">
+                <input type="number" id="jrnExit" placeholder="Exit Price" step="any" required style="padding:8px; background:#131722; border:1px solid #2a2e39; color:#fff; border-radius:6px;">
+                <input type="number" id="jrnPnL" placeholder="Profit / Loss ($)" step="any" required style="padding:8px; background:#131722; border:1px solid #2a2e39; color:#fff; border-radius:6px;">
+                <input type="text" id="jrnStrategy" placeholder="Strategy Used" style="padding:8px; background:#131722; border:1px solid #2a2e39; color:#fff; border-radius:6px;">
+                <input type="text" id="jrnEmotion" placeholder="Emotion / Mindset" style="padding:8px; background:#131722; border:1px solid #2a2e39; color:#fff; border-radius:6px;">
+                <button type="submit" class="btn btn-ai" style="padding:8px;">Add Log Entry</button>
+            </form>
+        </div>
+
+        <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:12px; padding:1.25rem;">
+            <h4 style="font-family:'Outfit'; color:#fff; margin-bottom:1rem;">Journal History</h4>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Symbol</th>
+                            <th>Market</th>
+                            <th>Side</th>
+                            <th>Entry</th>
+                            <th>Exit</th>
+                            <th>P&L ($)</th>
+                            <th>Strategy</th>
+                            <th>Emotion</th>
+                        </tr>
+                    </thead>
+                    <tbody id="journalTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- VIEW 9: MARKET NEWS & CALENDAR VIEW -->
+    <!-- ============================================================== -->
+    <div class="main-view-container" id="viewNews" style="display:none; padding:1.5rem; overflow-y:auto;">
+        <h2 style="font-family:'Outfit'; font-size:1.8rem; color:#fff; margin-bottom:1rem;"><i class="fa-solid fa-newspaper" style="color:var(--accent-cyan);"></i> Market Intelligence & Economic Calendar</h2>
+        
+        <!-- Forex Session & Indian Market Status Indicators -->
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
+            <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:12px; padding:1.25rem;">
+                <h4 style="font-family:'Outfit'; color:#fff; margin-bottom:0.75rem;">Forex Market Sessions</h4>
+                <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
+                    <span>Sydney: <strong style="color:var(--text-muted);">CLOSED</strong></span>
+                    <span>Tokyo: <strong style="color:var(--text-muted);">CLOSED</strong></span>
+                    <span>London: <strong style="color:#10b981;">OPEN 🟢</strong></span>
+                    <span>New York: <strong style="color:#10b981;">OPEN 🟢 (OVERLAP)</strong></span>
+                </div>
+            </div>
+            <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:12px; padding:1.25rem;">
+                <h4 style="font-family:'Outfit'; color:#fff; margin-bottom:0.75rem;">Indian Stock Market (NSE / BSE)</h4>
+                <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
+                    <span>Pre-Open (09:00 - 09:15 IST)</span>
+                    <span>Market Session: <strong style="color:#10b981;">OPEN 🟢 (09:15 - 15:30 IST)</strong></span>
+                </div>
+            </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem;">
+            <!-- Economic Calendar -->
+            <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:12px; padding:1.25rem;">
+                <h4 style="font-family:'Outfit'; color:#fff; margin-bottom:1rem;">High Impact Economic Events</h4>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Curr</th>
+                                <th>Event</th>
+                                <th>Impact</th>
+                                <th>Prev</th>
+                                <th>Fcst</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="calendarTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Market News -->
+            <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:12px; padding:1.25rem;">
+                <h4 style="font-family:'Outfit'; color:#fff; margin-bottom:1rem;">Market Breaking News</h4>
+                <div id="newsCardsList" style="display:flex; flex-direction:column; gap:1rem;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- VIEW 10: SUBSCRIPTION PRICING VIEW -->
+    <!-- ============================================================== -->
+    <div class="main-view-container" id="viewPricing" style="display:none; padding:2rem; overflow-y:auto; text-align:center;">
+        <h1 style="font-family:'Outfit'; font-size:2.4rem; color:#fff;">TradeAI Membership Plans</h1>
+        <div style="color:var(--text-secondary); margin-bottom:2rem;">Unlock real-time AI signal engines, backtesting tools, and institutional indicators.</div>
+
+        <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:1.5rem; max-width:1050px; margin:0 auto;">
+            <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:16px; padding:2rem; text-align:left;">
+                <h3 style="font-family:'Outfit'; color:#fff; font-size:1.4rem;">FREE</h3>
+                <div style="font-size:2rem; font-weight:800; color:#fff; margin:0.75rem 0;">$0 <span style="font-size:0.9rem; color:var(--text-muted);">/ mo</span></div>
+                <ul style="list-style:none; line-height:2.2; color:var(--text-secondary); margin-bottom:1.5rem;">
+                    <li>✓ Standard Candlestick Charts</li>
+                    <li>✓ Basic Technical Indicators</li>
+                    <li>✓ 5 AI Signals per day</li>
+                    <li>✓ Delayed Market Data</li>
+                </ul>
+                <button class="btn btn-deposit" style="width:100%; padding:12px;">Current Plan</button>
+            </div>
+
+            <div style="background:linear-gradient(180deg, #1e222d, #131722); border:2px solid var(--accent-cyan); border-radius:16px; padding:2rem; text-align:left; position:relative;">
+                <div style="position:absolute; top:-12px; right:20px; background:var(--accent-cyan); color:#000; font-weight:800; font-size:0.75rem; padding:3px 10px; border-radius:12px;">MOST POPULAR</div>
+                <h3 style="font-family:'Outfit'; color:var(--accent-cyan); font-size:1.4rem;">PRO AI</h3>
+                <div style="font-size:2rem; font-weight:800; color:#fff; margin:0.75rem 0;">$49 <span style="font-size:0.9rem; color:var(--text-muted);">/ mo</span></div>
+                <ul style="list-style:none; line-height:2.2; color:var(--text-primary); margin-bottom:1.5rem;">
+                    <li>✓ Real-Time Streaming Ticks</li>
+                    <li>✓ Unlimited AI Signal Engine</li>
+                    <li>✓ SMC & Liquidity Overlay</li>
+                    <li>✓ Market Scanner Access</li>
+                    <li>✓ Price & Indicator Alerts</li>
+                </ul>
+                <button class="btn btn-ai" style="width:100%; padding:12px;">Upgrade to PRO</button>
+            </div>
+
+            <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:16px; padding:2rem; text-align:left;">
+                <h3 style="font-family:'Outfit'; color:var(--accent-purple); font-size:1.4rem;">INSTITUTIONAL</h3>
+                <div style="font-size:2rem; font-weight:800; color:#fff; margin:0.75rem 0;">$99 <span style="font-size:0.9rem; color:var(--text-muted);">/ mo</span></div>
+                <ul style="list-style:none; line-height:2.2; color:var(--text-secondary); margin-bottom:1.5rem;">
+                    <li>✓ All PRO Features Included</li>
+                    <li>✓ Strategy Backtesting Engine</li>
+                    <li>✓ Personal AI Trading Assistant</li>
+                    <li>✓ Trade Journal Analytics</li>
+                    <li>✓ Priority Support</li>
+                </ul>
+                <button class="btn btn-deposit" style="width:100%; padding:12px;">Get Institutional</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- VIEW 11: SETTINGS VIEW -->
+    <!-- ============================================================== -->
+    <div class="main-view-container" id="viewSettings" style="display:none; padding:1.5rem; overflow-y:auto;">
+        <h2 style="font-family:'Outfit'; font-size:1.8rem; color:#fff; margin-bottom:1rem;"><i class="fa-solid fa-gear" style="color:var(--text-secondary);"></i> Platform Settings</h2>
+        
+        <div style="background:#1e222d; border:1px solid #2a2e39; border-radius:12px; padding:1.5rem; max-width:600px;">
+            <form onsubmit="saveAISettings(event)" style="display:flex; flex-direction:column; gap:1.25rem;">
+                <div>
+                    <label style="color:var(--text-primary); font-weight:600;">Minimum AI Signal Confidence (%): <strong id="lblMinConfidence" style="color:var(--accent-cyan);">70%</strong></label>
+                    <input type="range" id="cfgMinConfidence" min="50" max="95" value="70" oninput="document.getElementById('lblMinConfidence').innerText = this.value + '%'" style="width:100%; margin-top:8px;">
+                </div>
+
+                <div>
+                    <label style="color:var(--text-primary); font-weight:600;">Minimum Risk/Reward Ratio: <strong id="lblMinRR" style="color:var(--accent-cyan);">1:2.0</strong></label>
+                    <input type="range" id="cfgMinRR" min="1.0" max="4.0" step="0.1" value="2.0" oninput="document.getElementById('lblMinRR').innerText = '1:' + parseFloat(this.value).toFixed(1)" style="width:100%; margin-top:8px;">
+                </div>
+
+                <div>
+                    <label style="color:var(--text-primary); font-weight:600;">Default Market Category:</label>
+                    <select id="cfgDefaultMarket" style="width:100%; padding:8px; background:#131722; border:1px solid #2a2e39; color:#fff; border-radius:6px; margin-top:6px;">
+                        <option value="FOREX">Forex & Commodities</option>
+                        <option value="CRYPTO">Cryptocurrency</option>
+                        <option value="INDIAN_MARKET">Indian Stock Market (NSE/BSE)</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="btn btn-ai" style="padding:10px;">Save Settings</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- AI TRADING ASSISTANT CHAT DRAWER -->
+    <div class="ai-chat-drawer" id="aiChatDrawer" style="display:none;">
+        <div class="drawer-header">
+            <span><i class="fa-solid fa-comments" style="color:var(--accent-cyan);"></i> AI Trading Assistant</span>
+            <span onclick="toggleAIChatDrawer()" style="cursor:pointer;">&times;</span>
+        </div>
+        <div class="chat-messages-container" id="chatMessagesContainer">
+            <div class="chat-msg ai">
+                Hello! I am your AI Trading Assistant. Ask me anything about current chart setups, scalping entries, support & resistance, or market trends!
+            </div>
+        </div>
+        <div class="chat-input-bar">
+            <input type="text" id="chatInputText" placeholder="e.g. Analyze XAUUSD 15m..." onkeydown="if(event.key==='Enter') sendAIChatMessage()">
+            <button class="btn btn-ai" onclick="sendAIChatMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal-overlay" id="walletModal">
+        <div class="modal-content" style="max-width: 580px;">
+            <button class="close-btn" id="walletModalClose">&times;</button>
+            <h3>XM Wallet Gateway</h3>
+            <form id="walletForm" onsubmit="handleWalletTransaction(event)">
+                <div class="form-group">
+                    <label>Amount ($ USD)</label>
+                    <input type="number" id="walletAmount" placeholder="500" required min="10">
+                </div>
+                <button type="submit" class="btn btn-ai">Submit Transaction</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Multi-Market AI Scanner Modal -->
+    <div class="modal-overlay" id="scannerModal">
+        <div class="modal-content" style="max-width: 800px;">
+            <button class="close-btn" onclick="closeAIScannerModal()">&times;</button>
+            <h3><i class="fa-solid fa-robot" style="color:var(--accent-cyan);"></i> AI Multi-Market Scanner</h3>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Instrument</th>
+                            <th>Bid / Ask</th>
+                            <th>Signal</th>
+                            <th>Confidence</th>
+                            <th>Market Condition</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scannerTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Developer Debug Panel (Requirement #33) -->
+    <div class="dev-debug-panel" id="devDebugPanel">
+        <div class="debug-item"><i class="fa-solid fa-terminal" style="color:var(--accent-cyan);"></i> <strong>DEBUG:</strong></div>
+        <div class="debug-item">Connection: <strong id="dbgConnectionState" style="color:#10b981;">CONNECTED</strong></div>
+        <div class="debug-item">Mode: <strong id="dbgDataMode" style="color:#10b981;">LIVE</strong></div>
+        <div class="debug-item">Provider: <strong id="dbgProviderName">Financial Market Stream</strong></div>
+        <div class="debug-item">Symbol: <strong id="dbgSymbol">XAUUSD</strong></div>
+        <div class="debug-item">Latency: <strong id="dbgLatency" style="color:#10b981;">42 ms</strong></div>
+        <div class="debug-item">Last Tick: <strong id="dbgLastTick">16:42:18</strong></div>
+    </div>
+
+    <!-- Terminal Footer & Copyright -->
+    <footer class="terminal-footer">
+        <div>© 2026 <strong>TradeAI</strong>. All Rights Reserved. Tagline: <em>“AI-Powered Market Intelligence”</em></div>
+        <div>Owner & Lead Developer: <strong>Akhil Gitaram Rale</strong> | Mobile: <a href="tel:+917719080018" style="color:var(--accent-cyan);">+91 7719080018</a> | Email: <a href="mailto:akhilrale5577@gmail.com" style="color:var(--accent-cyan);">akhilrale5577@gmail.com</a></div>
+    </footer>
+
+    <!-- App Script -->
+    <script src="/js/app.js"></script>
+</body>
+</html>
